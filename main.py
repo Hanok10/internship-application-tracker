@@ -20,10 +20,12 @@ while True:
     print("1. Add an application")
     print("2. View applications")
     print("3. Update application status")
-    print("4. Exit")
+    print("4. Delete an application")
+    print("5. Exit")
 
     choice = input("Choose an option: ").strip()
 
+    # Add a new application.
     if choice == "1":
         company = input("Company name: ").strip()
         position = input("Position title: ").strip()
@@ -43,6 +45,7 @@ while True:
 
         print("Application saved!")
 
+    # Display all saved applications.
     elif choice == "2":
         applications = connection.execute(
             """
@@ -63,6 +66,7 @@ while True:
                 print(f"Position: {position}")
                 print(f"Status: {status}")
 
+    # Update the status of an existing application.
     elif choice == "3":
         try:
             application_id = int(input("Application ID to update: "))
@@ -79,7 +83,8 @@ while True:
             print("No application found with that ID.")
             continue
 
-        print(f"\nUpdating: {application[0]} | {application[1]}")
+        print(f"\nCompany: {application[0]}")
+        print(f"Position: {application[1]}")
 
         statuses = {
             "1": "Interested",
@@ -107,11 +112,48 @@ while True:
 
         print("Status updated!")
 
+    # Delete an application after confirmation.
     elif choice == "4":
+        try:
+            application_id = int(input("Application ID to delete: "))
+        except ValueError:
+            print("Please enter a whole number.")
+            continue
+
+        application = connection.execute(
+            "SELECT company, position FROM applications WHERE id = ?",
+            (application_id,)
+        ).fetchone()
+
+        if application is None:
+            print("No application found with that ID.")
+            continue
+
+        print(f"\nCompany: {application[0]}")
+        print(f"Position: {application[1]}")
+
+        confirmation = input(
+            "Type yes to permanently delete this application: "
+        ).strip().lower()
+
+        if confirmation != "yes":
+            print("Deletion cancelled.")
+            continue
+
+        with connection:
+            connection.execute(
+                "DELETE FROM applications WHERE id = ?",
+                (application_id,)
+            )
+
+        print("Application deleted.")
+
+    # Exit the program.
+    elif choice == "5":
         print("Goodbye!")
         break
 
     else:
-        print("Invalid option. Please enter 1, 2, 3, or 4.")
+        print("Invalid option. Please enter 1, 2, 3, 4, or 5.")
 
 connection.close()
