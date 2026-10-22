@@ -1,11 +1,12 @@
 import sqlite3
+from datetime import date
 from pathlib import Path
 
-# Keep the database in the same folder as this program.
+# Keep the database beside this program.
 database_path = Path(__file__).resolve().parent / "applications.db"
 connection = sqlite3.connect(database_path)
 
-# Create the table if it does not already exist.
+# Create the original table if needed.
 connection.execute("""
     CREATE TABLE IF NOT EXISTS applications (
         id INTEGER PRIMARY KEY,
@@ -14,6 +15,26 @@ connection.execute("""
         status TEXT NOT NULL
     )
 """)
+
+# Check which columns already exist.
+columns = {
+    column[1]
+    for column in connection.execute("PRAGMA table_info(applications)")
+}
+
+# Add the new columns to existing databases.
+with connection:
+    if "posting_url" not in columns:
+        connection.execute("""
+            ALTER TABLE applications
+            ADD COLUMN posting_url TEXT NOT NULL DEFAULT ''
+        """)
+
+    if "deadline" not in columns:
+        connection.execute("""
+            ALTER TABLE applications
+            ADD COLUMN deadline TEXT NOT NULL DEFAULT ''
+        """)
 
 while True:
     print("\nInternship Application Tracker")
@@ -34,22 +55,42 @@ while True:
             print("Company and position cannot be empty.")
             continue
 
+        posting_url = input(
+            "Posting link (press Enter to skip): "
+        ).strip()
+
+        while True:
+            deadline = input(
+                "Deadline YYYY-MM-DD (press Enter if unknown): "
+            ).strip()
+
+            if not deadline:
+                break
+
+            try:
+                date.fromisoformat(deadline)
+                break
+            except ValueError:
+                print("Enter a valid date, such as 2026-11-20.")
+
         with connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
-                INSERT INTO applications (company, position, status)
-                VALUES (?, ?, ?)
+                INSERT INTO applications (
+                    company, position, status, posting_url, deadline
+                )
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (company, position, "Interested")
+                (company, position, "Interested", posting_url, deadline)
             )
 
-        print("Application saved!")
+        print(f"Application saved! Application ID: {cursor.lastrowid}")
 
     # Display all saved applications.
     elif choice == "2":
         applications = connection.execute(
             """
-            SELECT id, company, position, status
+            SELECT id, company, position, status, posting_url, deadline
             FROM applications
             ORDER BY id
             """
@@ -60,13 +101,24 @@ while True:
         else:
             print("\nSaved applications:")
 
-            for application_id, company, position, status in applications:
+            for application in applications:
+                (
+                    application_id,
+                    company,
+                    position,
+                    status,
+                    posting_url,
+                    deadline
+                ) = application
+
                 print(f"\nApplication ID: {application_id}")
                 print(f"Company: {company}")
                 print(f"Position: {position}")
                 print(f"Status: {status}")
+                print(f"Posting link: {posting_url or 'Not provided'}")
+                print(f"Deadline: {deadline or 'Unknown'}")
 
-    # Update the status of an existing application.
+    # Update an application's status.
     elif choice == "3":
         try:
             application_id = int(input("Application ID to update: "))
@@ -148,7 +200,6 @@ while True:
 
         print("Application deleted.")
 
-    # Exit the program.
     elif choice == "5":
         print("Goodbye!")
         break
